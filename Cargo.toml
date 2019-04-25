@@ -1,0 +1,13 @@
+[package]
+name = "nexstar"
+version = "0.1.0"
+authors = ["Sebastian Woetzel <wose@zuendmasse.de>"]
+edition = "2018"
+
+[dependencies]
+embedded-hal = "^0.2"
+nb = "0.1.1"
+
+[dev-dependencies]
+serial = "0.4.0"
+serial-embedded-hal = "0.1.2"
