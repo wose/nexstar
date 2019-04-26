@@ -1,4 +1,4 @@
-use nexstar::{NexStar, Version};
+use nexstar::{Device, NexStar};
 
 use serial::{Baud9600, Bits8, FlowNone, ParityNone, Stop1};
 use serial_embedded_hal::{PortSettings, Serial};
@@ -25,6 +25,27 @@ fn main() {
     let mut nexstar = NexStar::new(rx, tx);
 
     if let Ok(version) = nexstar.version() {
-        println!("Version: {}.{}", version.major, version.minor);
+        println!("HC Version: {}.{}", version.major, version.minor);
+    }
+
+    print_version(&mut nexstar, "AZM/RA Motor", Device::AzmRaMotor);
+    print_version(&mut nexstar, "ALT/DEC Motor", Device::AltDecMotor);
+    print_version(&mut nexstar, "GPS Unit", Device::GPSUnit);
+    print_version(&mut nexstar, "RTC", Device::RTC);
+
+    if let Ok(model) = nexstar.model() {
+        println!("Model: {:?}", model)
+    }
+}
+
+fn print_version<T, U>(nexstar: &mut NexStar<T, U>, name: &str, device: Device)
+where
+    T: embedded_hal::serial::Read<u8>,
+    U: embedded_hal::serial::Write<u8>,
+{
+    match nexstar.device_version(device) {
+        Ok(version) => println!("{} Version: {}.{}", name, version.major, version.minor),
+        Err(nexstar::Error::UnexpectedResponse) => println!("{} not present.", name),
+        Err(_) => println!("Communication error"),
     }
 }
