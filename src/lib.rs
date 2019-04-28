@@ -6,11 +6,10 @@ use embedded_hal::serial;
 use nb::block;
 
 #[derive(Debug)]
-pub enum Error<T, U>
-{
+pub enum Error<T, U> {
     UnexpectedResponse,
     Read(T),
-    Write(U)
+    Write(U),
 }
 
 /// Sub Device Commands
@@ -100,9 +99,10 @@ where
         NexStar { rx, tx }
     }
 
+    // Miscellaneous Commands
     /// Gets the version of the Hand Controller (HC) firmware.
     pub fn version(&mut self) -> Result<Version, Error<T::Error, U::Error>> {
-        self.write_all(&[b'V' as u8])?;
+        self.write_all(&[b'V'])?;
         self.read_version()
     }
 
@@ -124,7 +124,7 @@ where
 
     /// Gets the model of the telescope mount.
     pub fn model(&mut self) -> Result<Model, Error<T::Error, U::Error>> {
-        self.write_all(&[b'm' as u8])?;
+        self.write_all(&[b'm'])?;
 
         let model = match self.read()? {
             0x01 => Model::GPSSeries,
@@ -141,6 +141,33 @@ where
         };
 
         Ok(model)
+    }
+
+    /// Gets the alignment state.
+    pub fn is_alignment_complete(&mut self) -> Result<bool, Error<T::Error, U::Error>> {
+        self.write_all(&[b'J'])?;
+        let active = self.read()?;
+        self.check_ack()?;
+        Ok(active == 0x01)
+    }
+
+    /// Gets GOTO state.
+    pub fn is_goto_in_progress(&mut self) -> Result<bool, Error<T::Error, U::Error>> {
+        self.write_all(&[b'L'])?;
+        let active = self.read()?;
+        self.check_ack()?;
+        Ok(active == b'1')
+    }
+
+    fn echo(&mut self) -> Result<(), Error<T::Error, U::Error>> {
+        self.write_all(&[b'K', 0x42])?;
+        let res = self.read()?;
+        self.check_ack()?;
+
+        match res {
+            0x42 => Ok(()),
+            _ => Err(Error::UnexpectedResponse),
+        }
     }
 
     pub fn free(self) -> (T, U) {
@@ -166,14 +193,23 @@ where
     fn read_version(&mut self) -> Result<Version, Error<T::Error, U::Error>> {
         let major = self.read()?;
         let minor = self.read()?;
-        let ack = self.read()?;
 
-        if ack != b'#' {
-            let _ = self.read()?;
-            return Err(Error::UnexpectedResponse);
-        }
+        self.check_ack()?;
 
         Ok(Version { major, minor })
+    }
+
+    fn check_ack(&mut self) -> Result<(), Error<T::Error, U::Error>> {
+        let ack = self.read()?;
+
+        match ack {
+            b'#' => Ok(()),
+            _ => {
+                // consume the addidional byte sent when an error occurred
+                self.read()?;
+                Err(Error::UnexpectedResponse)
+            }
+        }
     }
 }
 
