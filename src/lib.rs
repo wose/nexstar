@@ -7,13 +7,10 @@ use nb::block;
 
 #[derive(Debug)]
 pub enum Error<T, U>
-where
-    T: serial::Read<u8>,
-    U: serial::Write<u8>,
 {
     UnexpectedResponse,
-    Read(T::Error),
-    Write(U::Error),
+    Read(T),
+    Write(U)
 }
 
 /// Sub Device Commands
@@ -104,13 +101,13 @@ where
     }
 
     /// Gets the version of the Hand Controller (HC) firmware.
-    pub fn version(&mut self) -> Result<Version, Error<T, U>> {
+    pub fn version(&mut self) -> Result<Version, Error<T::Error, U::Error>> {
         self.write_all(&[b'V' as u8])?;
         self.read_version()
     }
 
     /// gets the version of the specified sub device.
-    pub fn device_version(&mut self, device: Device) -> Result<Version, Error<T, U>> {
+    pub fn device_version(&mut self, device: Device) -> Result<Version, Error<T::Error, U::Error>> {
         let cmd = [
             0x50,
             0x01,
@@ -126,7 +123,7 @@ where
     }
 
     /// Gets the model of the telescope mount.
-    pub fn model(&mut self) -> Result<Model, Error<T, U>> {
+    pub fn model(&mut self) -> Result<Model, Error<T::Error, U::Error>> {
         self.write_all(&[b'm' as u8])?;
 
         let model = match self.read()? {
@@ -150,23 +147,23 @@ where
         (self.rx, self.tx)
     }
 
-    fn read_multiple(&mut self, buffer: &mut [u8]) -> Result<(), Error<T, U>> {
+    fn read_multiple(&mut self, buffer: &mut [u8]) -> Result<(), Error<T::Error, U::Error>> {
         for idx in 0..buffer.len() {
             buffer[idx] = self.read()?
         }
         Ok(())
     }
 
-    fn read(&mut self) -> Result<u8, Error<T, U>> {
+    fn read(&mut self) -> Result<u8, Error<T::Error, U::Error>> {
         block!(self.rx.read()).map_err(|e| Error::Read(e))
     }
 
-    fn write_all(&mut self, buffer: &[u8]) -> Result<(), Error<T, U>> {
+    fn write_all(&mut self, buffer: &[u8]) -> Result<(), Error<T::Error, U::Error>> {
         self.bwrite_all(buffer).map_err(|e| Error::Write(e))?;
         self.bflush().map_err(|e| Error::Write(e))
     }
 
-    fn read_version(&mut self) -> Result<Version, Error<T, U>> {
+    fn read_version(&mut self) -> Result<Version, Error<T::Error, U::Error>> {
         let major = self.read()?;
         let minor = self.read()?;
         let ack = self.read()?;
