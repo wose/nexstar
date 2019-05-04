@@ -51,6 +51,10 @@ fn main() {
             datetime.hour, datetime.minutes, datetime.seconds, datetime.daylight_saving as u8
         );
     }
+
+    if let Ok(mode) = nexstar.tracking_mode() {
+        println!("Tracking Mode: {:?}", mode);
+    }
 }
 
 fn print_version<T, U>(nexstar: &mut NexStar<T, U>, name: &str, device: Device)

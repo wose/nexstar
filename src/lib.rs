@@ -123,6 +123,21 @@ pub enum Model {
     Unknown(u8),
 }
 
+/// Tracking Mode
+#[derive(Copy, Clone, Debug)]
+pub enum TrackingMode {
+    Off = 0x00,
+    AltAz = 0x01,
+    EQNorth = 0x02,
+    EQSouth = 0x03,
+}
+
+impl TrackingMode {
+    fn bits(&self) -> u8 {
+        *self as u8
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct Version {
     pub major: u8,
@@ -146,6 +161,34 @@ where
 {
     pub fn new(rx: T, tx: U) -> NexStar<T, U> {
         NexStar { rx, tx }
+    }
+
+    // Tracking commands
+    /// Gets the tracking mode.
+    pub fn tracking_mode(&mut self) -> Result<TrackingMode, Error<T::Error, U::Error>> {
+        self.write_all(&[b't'])?;
+        let mode = self.read()?;
+        self.check_ack()?;
+
+        let mode = match mode {
+            0x00 => TrackingMode::Off,
+            0x01 => TrackingMode::AltAz,
+            0x02 => TrackingMode::EQNorth,
+            0x03 => TrackingMode::EQSouth,
+            _ => return Err(Error::UnexpectedResponse),
+        };
+
+        Ok(mode)
+    }
+
+    /// Sets the tracking mode.
+    pub fn set_tracking_mode(
+        &mut self,
+        mode: TrackingMode,
+    ) -> Result<(), Error<T::Error, U::Error>> {
+        self.write_all(&[b't', mode.bits()])?;
+
+        self.check_ack()
     }
 
     // Time/Location Commands (Hand Control)
