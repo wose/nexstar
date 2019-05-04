@@ -36,6 +36,10 @@ fn main() {
     if let Ok(model) = nexstar.model() {
         println!("Model: {:?}", model)
     }
+
+    if let Ok(location) = nexstar.location() {
+        println!("Location: {} / {}", location.latitude, location.longitude);
+    }
 }
 
 fn print_version<T, U>(nexstar: &mut NexStar<T, U>, name: &str, device: Device)

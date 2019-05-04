@@ -47,6 +47,35 @@ impl Device {
     }
 }
 
+/// Location of the mount
+#[derive(Copy, Clone)]
+pub struct Location {
+    pub latitude: f32,
+    pub longitude: f32,
+}
+
+impl Location {
+    pub fn lat_dms(&self) -> [u8; 4] {
+        dec_dms(self.latitude)
+    }
+
+    pub fn lon_dms(&self) -> [u8; 4] {
+        dec_dms(self.longitude)
+    }
+
+}
+
+fn dec_dms(dec: f32) -> [u8; 4] {
+    let sign = if dec < 0.0 { 0x00 } else { 0x01 };
+    let dec = if dec < 0.0 { -dec } else { dec };
+
+    let deg = dec as u8;
+    let min = (dec - deg as f32) * 60.0;
+    let sec = ((min - min as u8 as f32) * 60.0 + 0.5) as u8;
+
+    [deg, min as u8, sec, sign]
+}
+
 /// Telescope mount model
 #[derive(Debug, Copy, Clone)]
 pub enum Model {
@@ -99,6 +128,48 @@ where
         NexStar { rx, tx }
     }
 
+    // Time/Location Commands (Hand Control)
+    /// Gets the currently set location of the telescope.
+    pub fn location(&mut self) -> Result<Location, Error<T::Error, U::Error>> {
+        self.write_all(&[b'w'])?;
+
+        let mut buffer = [0u8; 8];
+        self.read_multiple(&mut buffer)?;
+        self.check_ack()?;
+
+        let latitude = buffer[0] as f32 + buffer[1] as f32 / 60.0 + buffer[2] as f32 / 3600.0;
+        let latitude = match buffer[3] {
+            0x00 => latitude,
+            0x01 => -latitude,
+            _ => return Err(Error::UnexpectedResponse),
+        };
+
+        let longitude = buffer[4] as f32 + buffer[5] as f32 / 60.0 + buffer[6] as f32 / 3600.0;
+        let longitude = match buffer[7] {
+            0x00 => longitude,
+            0x01 => -longitude,
+            _ => return Err(Error::UnexpectedResponse),
+        };
+
+        Ok(Location{
+            latitude,
+            longitude,
+        })
+    }
+
+    /// Sets the current location of the telescope.
+    pub fn set_location(&mut self, location: Location) -> Result<(), Error<T::Error, U::Error>> {
+        let mut buffer = [0u8; 9];
+        buffer[0] = b'W';
+        &buffer[1..5].copy_from_slice(&location.lat_dms());
+        &buffer[5..].copy_from_slice(&location.lon_dms());
+
+        self.write_all(&buffer)?;
+        self.check_ack()?;
+
+        Ok(())
+    }
+
     // Miscellaneous Commands
     /// Gets the version of the Hand Controller (HC) firmware.
     pub fn version(&mut self) -> Result<Version, Error<T::Error, U::Error>> {
@@ -139,6 +210,7 @@ where
             0x0C => Model::Se6_8,
             id => Model::Unknown(id),
         };
+        self.check_ack()?;
 
         Ok(model)
     }
@@ -176,7 +248,7 @@ where
 
     fn read_multiple(&mut self, buffer: &mut [u8]) -> Result<(), Error<T::Error, U::Error>> {
         for idx in 0..buffer.len() {
-            buffer[idx] = self.read()?
+            buffer[idx] = self.read()?;
         }
         Ok(())
     }
