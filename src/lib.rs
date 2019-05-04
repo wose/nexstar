@@ -24,6 +24,27 @@ impl Command {
     }
 }
 
+/// Date Time
+#[derive(Copy, Clone)]
+pub struct DateTime {
+    /// Hour (24 hour clock)
+    pub hour: u8,
+    /// Minutes
+    pub minutes: u8,
+    /// Seconds
+    pub seconds: u8,
+    /// Offset from GMT.
+    pub zone: i8,
+    /// Daylight Savings or Standard Time
+    pub daylight_saving: bool,
+    /// Year with century assumed as 20.
+    pub year: u8,
+    /// Month
+    pub month: u8,
+    /// Day
+    pub day: u8,
+}
+
 /// Sub Device
 #[derive(Copy, Clone)]
 pub enum Device {
@@ -62,7 +83,6 @@ impl Location {
     pub fn lon_dms(&self) -> [u8; 4] {
         dec_dms(self.longitude)
     }
-
 }
 
 fn dec_dms(dec: f32) -> [u8; 4] {
@@ -151,18 +171,58 @@ where
             _ => return Err(Error::UnexpectedResponse),
         };
 
-        Ok(Location{
+        Ok(Location {
             latitude,
             longitude,
         })
     }
 
-    /// Sets the current location of the telescope.
+    /// Sets the location of the Hand Controller (HC).
     pub fn set_location(&mut self, location: Location) -> Result<(), Error<T::Error, U::Error>> {
         let mut buffer = [0u8; 9];
         buffer[0] = b'W';
         &buffer[1..5].copy_from_slice(&location.lat_dms());
         &buffer[5..].copy_from_slice(&location.lon_dms());
+
+        self.write_all(&buffer)?;
+        self.check_ack()?;
+
+        Ok(())
+    }
+
+    /// Gets the currently set date and time of the Hand Controller (HC).
+    pub fn datetime(&mut self) -> Result<DateTime, Error<T::Error, U::Error>> {
+        self.write_all(&[b'h'])?;
+
+        let mut buffer = [0u8; 8];
+        self.read_multiple(&mut buffer)?;
+        self.check_ack()?;
+
+        Ok(DateTime {
+            hour: buffer[0],
+            minutes: buffer[1],
+            seconds: buffer[2],
+            zone: buffer[6] as i8,
+            daylight_saving: buffer[7] == 1,
+            year: buffer[5],
+            month: buffer[3],
+            day: buffer[4],
+        })
+    }
+
+    /// Sets date and time of the Hand Controller (HC).
+    pub fn set_datetime(&mut self, datetime: DateTime) -> Result<(), Error<T::Error, U::Error>> {
+        let buffer = [
+            b'H',
+            datetime.hour,
+            datetime.minutes,
+            datetime.seconds,
+            datetime.month,
+            datetime.day,
+            datetime.year,
+            datetime.zone as u8,
+            datetime.daylight_saving as u8,
+        ];
 
         self.write_all(&buffer)?;
         self.check_ack()?;

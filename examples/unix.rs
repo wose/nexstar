@@ -40,6 +40,17 @@ fn main() {
     if let Ok(location) = nexstar.location() {
         println!("Location: {} / {}", location.latitude, location.longitude);
     }
+
+    if let Ok(datetime) = nexstar.datetime() {
+        println!(
+            "Date: 20{}-{}-{} GMT{}",
+            datetime.year, datetime.month, datetime.day, datetime.zone
+        );
+        println!(
+            "Time: {}:{}:{} +{}",
+            datetime.hour, datetime.minutes, datetime.seconds, datetime.daylight_saving as u8
+        );
+    }
 }
 
 fn print_version<T, U>(nexstar: &mut NexStar<T, U>, name: &str, device: Device)
